@@ -1,0 +1,542 @@
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+:: StoryTitle
+test
+
+
+:: StoryData
+{
+  "ifid": "62AAC0B1-8CFC-482E-8DC7-6738BD9998CF",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Home",
+  "zoom": 0.6
+}
+
+
+:: Boss Battle {"position":"1925,475","size":"100,100"}
+<<nobr>>
+<<set setup.arena to clone({
+  turn: "ally",
+  turnNumber: 0,
+  enemy: [{
+    ...setup.enemies.boss,
+    name: "The boss",
+    isBoss: true,
+  }],
+  ally: [{
+    ...$PlayerStat,
+    isPlayer: true,
+    name: "You",
+  }],
+})>>
+
+
+<div style="display: flex">
+  <div style="order: 2; flex-grow: 1; max-height: 20rem; overflow-y: auto; margin: 0 0.5rem; padding: 0 0.5rem;">
+    <div id="combat-log" style="text-align: center">
+    </div>
+  </div>
+  <div style="order: 1">
+    <h3>You</h3>
+    <<do_when_changed battle_start_turn>>
+      <ul>
+        <li>
+          HP: <<=setup.arena.ally[0].hp>>
+        </li>
+        <<if setup.arena.turn === "ally">>
+          <li>action</li>
+          <li>
+            <<link "Punch">>
+              <<emit_event [[combat_action]]>>
+              {
+                type: "attack",
+                name: "punch",
+                actor: { team: "ally", position: 0 },
+                targets: [
+                  { team: "enemy", position: 0 }
+                ],
+              }
+              <</emit_event>>
+              <<emit_event [[battle_end_turn]]>><</emit_event>>
+            <</link>>
+          </li>
+        <</if>>
+      </ul>
+    <</do_when_changed>>
+  </div>
+  <div style="order: 3">
+    <<do_when_changed battle_start_turn>>
+      <h3>Komodo Dragon</h3>
+      <<if setup.arena.enemy[0].hp > 0>>
+        <small>is still a dragon</small>
+      <<else>>
+        <small>is now a "fainted" dragon</small>
+      <</if>>
+      <ul>
+        <li>
+          HP: <<=setup.arena.enemy[0].hp>>
+        </li>
+      </ul>      
+    <</do_when_changed>>
+  </div>
+</div>
+
+<<if !Macro.get("flavoraction")>>
+  <!--
+  I'm defining widget here for the sake of clearity of the demo, so that everything is together.
+  You obviously can define them in StoryInit or something
+  -->
+  <<widget "flavoraction">>
+    <<switch _args[1]>>
+    <<case "punch">>
+      <<=_args[0]>> punched <<=_args[2]>>,
+      <<if _args[4]>>Critting for<<else>>dealing<</if>>
+      _args[3] damage
+    <<case "lick">>
+      <<=_args[0]>> licked <<=_args[2]>><<if _isKillingBlow>> to death<</if>>,
+      <<if _args[4]>>Critting for<<else>>dealing<</if>>
+      _args[3] damage
+    <</switch>>
+  <</widget>>
+
+  <<widget "flavorfaint">>
+    <<if _args[0].isPlayer>>
+      The mighty dragon has claimed yet another prey
+    <<else>>
+      _args[0].name "fainted", proud of yourself?
+    <</if>>
+  <</widget>>
+<</if>>
+
+
+<<do_when_changed combat_action>>
+  <<switch _combat_action.type>>
+  <<case "attack">>
+    <<set _actor to setup.arena[_combat_action.actor.team][_combat_action.actor.position]>>
+    <<for _i, _who range _combat_action.targets>>
+      <<set _target to setup.arena[_who.team][_who.position]>>
+      <<set _damage to _actor.attackPower>>
+      <<set _isCrit to _actor.critChance >= randomFloat(0, 1)>>
+      <<if _isCrit>>
+        <<set _damage to _damage * 1.7>>
+      <</if>>
+      <<set _target.hp -= _damage>>
+      <<set _target.hp to Math.round(_target.hp * 10) / 10>>
+      <<set _target.hp to Math.max(_target.hp, 0)>>
+      <<set _isKillingBlow to _target.hp <= 0>>
+      <<append "#combat-log>.combat-turn:last-child()">>
+        <<flavoraction _actor.name _combat_action.name _target.name _damage _isCrit _isKillingBlow>>
+        <br>
+      <</append>>
+      <<if _target.isPlayer>>
+        <<emit_event [[combat_update_player]]>>_target<</emit_event>>
+      <</if>>
+      <<if _isKillingBlow>>
+        <<emit_event [[combat_combatant_faint]]>>
+        {
+          who: _who,
+          cause: { type: "attack", attacker: _actor }
+        }
+        <</emit_event>>
+      <</if>>
+    <</for>>
+  <</switch>>
+<</do_when_changed>>
+
+<<do_when_changed battle_start_turn>>
+  <<if setup.arena.turn === "ally">>
+    <<set setup.arena.turnNumber += 1>>
+    <<append "#combat-log">>
+      <div class="combat-turn" style="margin-bottom: 1rem">
+        Turn <<= setup.arena.turnNumber>>
+        <br>
+      </div>
+    <</append>>
+  <</if>>
+  <<run $("#combat-log").parent().animate({ scrollTop: $("#combat-log").height() }, 200)>>
+
+  <<if setup.arena.turn === "enemy">>
+    <<timed 0.2s>>
+      <<include [[arena - boss action]]>>
+      <<emit_event [[battle_end_turn]]>><</emit_event>>
+    <</timed>>
+  <</if>>
+<</do_when_changed>>
+
+<<do_when_changed battle_end_turn>>
+<</do_when_changed>>
+
+<<do_when_changed combat_update_player>>
+<</do_when_changed>>
+
+<<do_when_changed combat_combatant_faint>>
+  <<set _who to _combat_combatant_faint.who>>
+  <<set _combatant to setup.arena[_who.team][_who.position]>>
+
+  <<append "#combat-log>.combat-turn:last-child()">>
+    <<flavorfaint _combatant>>
+  <</append>>
+
+  <<if _combatant.isPlayer>>
+    <<set setup.arena.turn to "_battle_ended">>
+    <<emit_event [[battle_ended]]>><</emit_event>>
+    <<emit_event [[player_defeated_in_battle]]>><</emit_event>>
+  <<elseif _combatant.isBoss>>
+    <<set setup.arena.turn to "_battle_ended">>
+    <<emit_event [[battle_ended]]>><</emit_event>>
+    <<emit_event [[player_win_battle]]>><</emit_event>>
+  <</if>>
+  <<append "#combat-log">>
+    <div style="margin-top: 1rem;">
+      Combat ended
+    </div>
+  <</append>>
+<</do_when_changed>>
+
+<<do_when_changed player_win_battle>>
+  <br><br>
+  Go back to [[Map]]
+<</do_when_changed>>
+
+<<emit_event [[initiate_battle]]>>setup.arena<</emit_event>>
+<<emit_event [[battle_start_turn]]>><</emit_event>>
+<</nobr>>
+
+
+:: Data Stores {"position":"1000,75","size":"200,100"}
+This is a fake passage, only for visualizing stuff
+
+
+:: Events {"position":"2250,75","size":"200,100"}
+This is a fake passage, only for visualizing stuff
+
+
+:: Forest {"position":"1750,475","size":"100,100"}
+<<link "Ooo! a potion, what will it do?">>
+  <<emit_event [[drink_potion]]>>
+    {
+      who: "player",
+      potionType: "amnesia",
+    }
+  <</emit_event>>
+<</link>>
+
+<<access_store [[PlayerStat]]>>\
+<<if $PlayerStat.isUndead>>\
+  The monsters here like you <3
+<<elseif $PlayerStat.class isnot "jobless">>\
+\
+<<linkreplace "fight slime">>\
+  <<access_store [[PlayerStat]]>>\
+    <<if $PlayerStat.hp < 5>>\
+      You... didn't die, but aren't quite alive either
+      (I have no idea how does a slime turn people into undead)
+      (anyway, maybe pick a class with more health?)
+      <<set $PlayerStat.hp to 0>>\
+      <<set $PlayerStat.isUndead to true>>\
+    <<else>>\
+      you killed a slime
+      <<emit_event [[enemy_defeat]]>>
+        { enemy: "slime" }
+      <</emit_event>>\
+    <</if>>\
+    <<return "Go back to the map" Map>>
+  <</access_store>>
+<</linkreplace>>
+
+<</if>>
+<</access_store>>
+
+
+:: Home {"position":"1575,125","size":"100,100"}
+you wake up, [[let's go advanturing|Map]]
+
+
+:: Init Enemies {"position":"400,250","size":"100,100"}
+<<script>>
+setup.enemies = {
+  boss: {
+    name: "BBEG",
+    maxHp: 10,
+    hp: 10,
+    attackPower: 0.1,
+    critChance: 0.4,
+  }
+}
+<</script>>
+
+
+:: Map {"position":"1700,250","size":"100,100"}
+[[Prist]] - choose your class
+[[Forest]] - here be dragons
+<<if $ReactiveQuest['Training day'].status === "completed">>\
+[[Boss Battle]] - with an actual dragon?
+<</if>>
+
+
+:: Pick your class [reactive-quest] {"position":"2600,200","size":"100,100"}
+<<reactive_quest>>
+<<quest_line "Training Day" step "0">>
+<<qeust_update_depends_on "PlayerStat">>
+<<quest_log>>
+  <<switch $Quest.status>>
+
+  <<case "completed">>
+    You picked $PlayerStat.class, now go to the forest and kill some slime!
+
+  <<case "failed">>
+    impossible to reach this state for this quest
+
+  <<default>>
+    <<if $PlayerStat.class !== "jobless">>
+      <<quest_progress_to [[Training day]]>>
+
+    <<else>>
+      Go to the prist to choose your class
+
+    <</if>>
+
+  <</switch>>
+<</reactive_quest>>
+
+
+:: PlayerStat [reactive-data-store] {"position":"1050,200","size":"100,100"}
+<<reactive_store_default_value>>
+{
+  hp: 10,
+  attackPower: 1,
+  critChance: 0,
+  class: "jobless",
+  statusEffects: [],
+}
+<</reactive_store_default_value>>
+
+<<reactive_store_computed_values>>
+{
+  get maxHp() {
+    switch (this.class) {
+      case "wizard": return 4;
+      default: return 10;
+    }
+  },
+}
+<</reactive_store_computed_values>>
+
+
+:: Prist {"position":"1575,475","size":"100,100"}
+<<nobr>>
+
+<<access_store [[PlayerStat]]>>
+  <<set _noService to $PlayerStat.isUndead>>
+<</access_store>>
+
+<<if _noService>>
+  the prist does not provide its service to undead
+<<else>>
+  <<access_store [[PlayerStat]]>>
+    <<if $PlayerStat.statusEffects.includes("amnesia")>>
+      <<set $PlayerStat.statusEffects.deleteWith(n => n === "amnesia")>>
+      You seem to have drank an amnesia potion, let me help you<br>
+      ** amnesia cured ** (but you still don't remember what do amnesia do in this game)
+      <br><br>
+    <</if>>
+
+    <<if $PlayerStat.hp !== $PlayerStat.maxHp>>
+      <<set $PlayerStat.hp to $PlayerStat.maxHp>>
+      (the prist also healed you)
+      <br><br>
+    <</if>>
+  <</access_store>>
+
+  Will you be an
+  <<link "Archer">>
+    <<access_store [[PlayerStat]]>>
+      <<set $PlayerStat.class to "archer">>
+      <<set $PlayerStat.hp to $PlayerStat.maxHp>>
+      <<set $PlayerStat.attackPower to 2>>
+    <</access_store>>
+    <<goto [[Map]]>>
+  <</link>>
+  or
+  <<link "Wizard">>
+    <<access_store [[PlayerStat]]>>
+      <<set $PlayerStat to { hp: 4, attackPower: 1.5, critChance: 0.9, class: "wizard", statusEffects: [] }>>
+    <</access_store>>
+    <<goto [[Map]]>>
+  <</link>>
+  ?
+<</if>>
+
+<<if $ReactiveQuest['Training day'].status === "unknown">>
+<br><br>
+Oh, and go to the forest to kill some monster or something, IDK
+<<quest_mention [[Training day]]>>
+<</if>>
+
+<</nobr>>
+
+<<return "Go back" Map>>
+
+
+:: Quests {"position":"2550,75","size":"200,100"}
+This is a fake passage, only for visualizing stuff
+
+
+:: StoryCaption {"position":"575,100","size":"100,100"}
+<<include "Pick your class">>
+<<include "Training day">>
+
+
+:: StoryInit {"position":"400,100","size":"100,100"}
+<<include [[Init Enemies]]>>
+
+
+:: Training day [reactive-quest] {"position":"2600,325","size":"100,100"}
+<<reactive_quest>>
+<<quest_line "Training Day" step "1.1">>
+<<qeust_update_depends_on "PlayerStat" "enemy_defeat">>
+<<quest_log>>
+  <<if $Quest.botchedReasons>>
+  
+    <<if "player_is_undead" in $Quest.botchedReasons>>
+      <<if !$PlayerStat.isUndead>>
+        <<quest_unbotch from "player_is_undead">>
+      <<else>>
+        How did you become an undead? go to the prist to cure yourself!
+      <</if>>
+    <</if>>
+  
+  <<else>><<switch $Quest.status>>
+
+  <<case "completed">>
+    Good job, you have completed your training, now go to explore the world!
+    (there is no world)
+
+  <<case "achived" "accepted">>
+    impossible to reach this status for this quest
+
+  <<case "unknown">>
+
+  <<default>>
+    <<if _enemy_defeat>>
+      <<set $Quest.killCount += 1>>
+      <<if $Quest.killCount >= 3>>
+        <<quest_complete>>
+      <</if>>
+
+    <<elseif $PlayerStat.isUndead >>
+      <<quest_botch due_to "player_is_undead">>
+
+      <<if false>>
+      <<elseif $PlayerStat.statusEffects.includes("amnesia")>>
+        <<quest_regress backtrack>>
+      <</if>>
+
+    <<else>>
+      enemy killed: $Quest.killCount / 3
+
+    <</if>>
+  <</switch>><</if>>
+<</reactive_quest>>
+
+<<reactive_store_default_value>>
+{
+  killCount: 0,
+}
+<</reactive_store_default_value>>
+
+
+:: arena - boss action {"position":"1275,1100","size":"100,100"}
+<<emit_event [[combat_action]]>>
+{
+  type: "attack",
+  name: "lick",
+  actor: { team: "enemy", position: 0 },
+  targets: [
+    { team: "ally", position: 0 }
+  ],
+}
+<</emit_event>>
+
+
+:: battle_end_turn {"position":"2175,1100","size":"100,100"}
+<<if setup.arena.turn === "enemy">>
+  <<= setup.arena.turn = "ally">>
+<<elseif setup.arena.turn === "ally">>
+  <<= setup.arena.turn = "enemy">>
+<<else>>
+<</if>>
+<<emit_event [[battle_start_turn]]>><</emit_event>>
+
+
+:: battle_ended {"position":"1662.5,1100","size":"100,100"}
+
+
+
+:: battle_start_turn {"position":"2300,1100","size":"100,100"}
+
+
+
+:: combat_action {"position":"1412.5,1100","size":"100,100"}
+
+
+
+:: combat_combatant_faint {"position":"1537.5,1100","size":"100,100"}
+<<set _combatant to setup.arena[_who.team][_who.position]>>
+<<if !_combatant.isPlayer>>
+  <<emit_event [[enemy_defeat]]>>
+  { enemy: "boss" }
+  <</emit_event>>
+<</if>>
+
+
+:: combat_update_player {"position":"1125,1100","size":"100,100"}
+<<access_store [[PlayerStat]]>>
+  <<set $PlayerStat to _payload>>
+<</access_store>>
+
+
+:: drink_potion {"position":"2250,200","size":"200,100"}
+<<script TwineScript>> 
+  if (_potionType === "amnesia") {
+    _potionEffect = "amnesia"
+  } else {
+    _potionEffect = "whatever"
+  }
+
+  if (_who === "player") {
+    setup.eventStreams$.updateStores(
+      ["PlayerStat"],
+        draft => {
+          if (!draft.PlayerStat.statusEffects.includes(_potionEffect)) {
+              draft.PlayerStat.statusEffects.push(_potionEffect)
+          }
+          draft.PlayerStat.isUndead = false;
+        }
+    )
+    Dialog.create("Hmm...").wiki("How did I get here?").open();
+    Engine.play("Home"); // [[Home]]
+  } else {
+    // not implemented yet
+  }
+<</script>>
+
+
+:: enemy_defeat {"position":"2250,325","size":"200,100"}
+
+
+
+:: initiate_battle {"position":"2037.5,1100","size":"100,100"}
+
+
+
+:: player_defeated_in_battle {"position":"1787.5,1100","size":"100,100"}
+
+
+
+:: player_win_battle {"position":"1912.5,1100","size":"100,100"}
+
+
