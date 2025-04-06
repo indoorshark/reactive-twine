@@ -1,0 +1,23 @@
+# License
+ReactiveTwine is primarily MPL2 licensed. See LICENSE_COPY.MLP2 and these links:
+- http://www.mozilla.org/MPL/2.0/
+- http://www.mozilla.org/MPL/2.0/FAQ.html
+
+This library use and distribute third-party library as part of the JavaScript bundle,
+see how to access their source code and license in ALL-LICENSES.
+No significant changes are to be made to any third-party library apart from for example minification.
+
+
+# Intention
+The intention of licensing with MPL v2.0 for this library is to 
+encourage the prolification of free software (free as in freedom, not free beer).  
+However, the author is not blind to the fact that the developers who use this library
+might not have the technical knowhow and capability to comply with a strong copyleft license,
+thus, this library had a much more permissive license to allow use of the library without much hassle.
+
+If and only if you distribute the modification of this library itself would require you to opensource the modification,
+and only the modification itself is required to be opensourced, not any part of your software that merely use this library.
+
+
+That being said, I am not good at legal text, if any part of this file conflict with the exact wording or exact meaning of MPL 2.0, MPL 2.0 is the correct interpretation and should be followed. MPL 2.0 is the offical license for source code found in this repository.
+
